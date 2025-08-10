@@ -1,8 +1,16 @@
 from flask import jsonify, request, session
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models import db, User, People, Planet, Vehicle, Favorite
+from jwt_utils import jwt_required_custom, get_current_user
 
 def get_authenticated_user():
-    """Helper to get current authenticated user"""
+    """Helper to get current authenticated user from JWT or session"""
+    # Try JWT first
+    user = get_current_user()
+    if user:
+        return user, None, None
+    
+    # Fall back to session-based auth for backward compatibility
     user_id = session.get('user_id')
     if not user_id:
         return None, jsonify({"msg": "Authentication required"}), 401
@@ -66,20 +74,70 @@ def register_routes(app):
         
         user = User.query.filter_by(email=data['email']).first()
         
-        if not user or user.password != data['password']:  # Plain text comparison
+        if not user:
+            return jsonify({"msg": "Invalid email or password"}), 401
+        
+        # Check password using bcrypt for new hashed passwords, fallback to plain text
+        password_valid = False
+        try:
+            password_valid = user.check_password(data['password'])
+        except:
+            # Fallback to plain text comparison for existing users
+            password_valid = (user.password == data['password'])
+        
+        if not password_valid:
             return jsonify({"msg": "Invalid email or password"}), 401
         
         if not user.is_active:
             return jsonify({"msg": "Account is deactivated"}), 401
         
-        # Store user in session
+        # Create JWT token
+        access_token = create_access_token(identity=user.id)
+        
+        # Also store user in session for backward compatibility
         session['user_id'] = user.id
         session['user_email'] = user.email
         
         return jsonify({
             "msg": "Login successful",
+            "access_token": access_token,
             "user": user.serialize()
         }), 200
+    
+    @app.route('/api/auth/register', methods=['POST'])
+    def register():
+        data = request.get_json()
+        
+        if not data or not data.get('email') or not data.get('password'):
+            return jsonify({"msg": "Email and password are required"}), 400
+        
+        # Check if user already exists
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({"msg": "Email already registered"}), 400
+        
+        # Create new user
+        user = User(
+            email=data['email'],
+            is_active=True
+        )
+        user.set_password(data['password'])
+        
+        try:
+            db.session.add(user)
+            db.session.commit()
+            
+            # Create JWT token
+            access_token = create_access_token(identity=user.id)
+            
+            return jsonify({
+                "msg": "User registered successfully",
+                "access_token": access_token,
+                "user": user.serialize()
+            }), 201
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"msg": "Registration failed"}), 500
     
     @app.route('/api/auth/logout', methods=['POST'])
     def logout():
@@ -87,6 +145,7 @@ def register_routes(app):
         return jsonify({"msg": "Logout successful"}), 200
     
     @app.route('/api/auth/me', methods=['GET'])
+    @jwt_required_custom(optional=True)
     def get_current_user():
         user, error_response, status_code = get_authenticated_user()
         if error_response:
@@ -119,6 +178,7 @@ def register_routes(app):
         return handle_entity_request('vehicles', vehicle_id)
 
     @app.route('/api/users/favorites', methods=['GET'])
+    @jwt_required_custom(optional=True)
     def get_user_favorites():
         user, error_response, status_code = get_authenticated_user()
         if error_response:
@@ -127,25 +187,31 @@ def register_routes(app):
 
     # Favorite endpoints
     @app.route('/api/favorite/planet/<int:planet_id>', methods=['POST'])
+    @jwt_required_custom(optional=True)
     def add_favorite_planet(planet_id):
         return handle_favorite_action('planet', planet_id, 'add')
 
     @app.route('/api/favorite/people/<int:people_id>', methods=['POST'])
+    @jwt_required_custom(optional=True)
     def add_favorite_people(people_id):
         return handle_favorite_action('people', people_id, 'add')
 
     @app.route('/api/favorite/vehicle/<int:vehicle_id>', methods=['POST'])
+    @jwt_required_custom(optional=True)
     def add_favorite_vehicle(vehicle_id):
         return handle_favorite_action('vehicle', vehicle_id, 'add')
 
     @app.route('/api/favorite/planet/<int:planet_id>', methods=['DELETE'])
+    @jwt_required_custom(optional=True)
     def remove_favorite_planet(planet_id):
         return handle_favorite_action('planet', planet_id, 'remove')
 
     @app.route('/api/favorite/people/<int:people_id>', methods=['DELETE'])
+    @jwt_required_custom(optional=True)
     def remove_favorite_people(people_id):
         return handle_favorite_action('people', people_id, 'remove')
 
     @app.route('/api/favorite/vehicle/<int:vehicle_id>', methods=['DELETE'])
+    @jwt_required_custom(optional=True)
     def remove_favorite_vehicle(vehicle_id):
         return handle_favorite_action('vehicle', vehicle_id, 'remove')

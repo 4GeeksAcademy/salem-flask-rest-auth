@@ -5,6 +5,7 @@ import os
 from flask import Flask, jsonify
 from flask_migrate import Migrate
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db
@@ -16,6 +17,13 @@ def create_app():
     
     # Session configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    
+    # JWT Configuration
+    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-string-change-in-production')
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False  # Tokens never expire (for development)
+    
+    # Initialize JWT
+    jwt = JWTManager(app)
 
     # Simple SQLite database configuration
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////Users/salemmohd/Documents/GitHub/salem-flask-rest-star/instance/database.db"

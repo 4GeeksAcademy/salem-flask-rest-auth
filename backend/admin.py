@@ -3,6 +3,22 @@ from flask_admin import Admin
 from models import db, User, People, Planet, Vehicle, Favorite
 from flask_admin.contrib.sqla import ModelView
 from markupsafe import Markup
+from wtforms import PasswordField
+from wtforms.validators import DataRequired
+
+class UserView(ModelView):
+    """Custom ModelView for User model with proper password handling"""
+    column_exclude_list = ['password']
+    form_excluded_columns = ['password']
+    
+    def scaffold_form(self):
+        form_class = super().scaffold_form()
+        form_class.password = PasswordField('Password', [DataRequired()])
+        return form_class
+    
+    def on_model_change(self, form, model, is_created):
+        if form.password.data:
+            model.set_password(form.password.data)
 
 class ImageModelView(ModelView):
     """Custom ModelView for models with image URLs"""
@@ -45,7 +61,7 @@ def setup_admin(app):
     admin = Admin(app, name='Star Wars Admin', template_mode='bootstrap3')
     
     # Add model views with image support
-    admin.add_view(ModelView(User, db.session))
+    admin.add_view(UserView(User, db.session))
     admin.add_view(PeopleView(People, db.session))
     admin.add_view(PlanetView(Planet, db.session))
     admin.add_view(VehicleView(Vehicle, db.session))

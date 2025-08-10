@@ -14,7 +14,7 @@ start_backend() {
         echo "❌ Error: app.py not found in backend directory"
         exit 1
     fi
-    python3 app.py &
+    ../.venv/bin/python app.py &
     BACKEND_PID=$!
     echo "✅ Backend started (PID: $BACKEND_PID) at http://127.0.0.1:3000"
     cd ..

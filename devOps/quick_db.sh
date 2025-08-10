@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Star Wars Database Management Script
-# Uses Alembic for database migrations and provides utilities for bulk operations
+# Complete database operations and quick actions for the Flask REST API
 
 set -e  # Exit on any error
 
@@ -46,7 +46,7 @@ print_header() {
 check_venv() {
     if [ ! -f "$VENV_PYTHON" ]; then
         print_error "Virtual environment not found at $VENV_PYTHON"
-        print_status "Please run: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+        print_status "Please run: python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt"
         exit 1
     fi
 }
@@ -135,7 +135,6 @@ create_users() {
 
 from app import create_app
 from models import db, User
-from werkzeug.security import generate_password_hash
 
 def create_sample_users():
     """Create sample users for testing"""
@@ -163,9 +162,9 @@ def create_sample_users():
             if not existing:
                 user = User(
                     email=user_data["email"],
-                    password=generate_password_hash(user_data["password"]),
                     is_active=True
                 )
+                user.set_password(user_data["password"])  # Use bcrypt hashing
                 db.session.add(user)
                 created_count += 1
                 print(f"✅ Created user: {user_data['email']}")
@@ -346,6 +345,33 @@ backup_db() {
     print_success "Database backed up to: $backup_path"
 }
 
+# Quick menu for common operations
+show_quick_menu() {
+    echo -e "${CYAN}🌟 Star Wars Database Quick Actions${NC}"
+    echo "=================================="
+    echo ""
+    echo -e "${YELLOW}Quick Actions:${NC}"
+    echo "1. Add Star Wars data     - $0 1"
+    echo "2. Create sample users    - $0 2" 
+    echo "3. List users            - $0 3"
+    echo "4. Backup database       - $0 4"
+    echo "5. Reset database        - $0 5"
+    echo ""
+    echo -e "${YELLOW}Advanced Commands:${NC}"
+    echo "  init                    Initialize database and migrations"
+    echo "  migrate [message]       Create new migration"
+    echo "  upgrade                 Apply pending migrations"
+    echo "  downgrade [revision]    Downgrade to revision"
+    echo "  history                 Show migration history"
+    echo "  current                 Show current migration"
+    echo "  remove-users <pattern>  Remove users matching email pattern"
+    echo ""
+    echo "Examples:"
+    echo "  $0 init"
+    echo "  $0 migrate 'Add new table'"
+    echo "  $0 remove-users 'test@%'"
+}
+
 # Help function
 show_help() {
     echo -e "${CYAN}Star Wars Database Management Script${NC}"
@@ -370,6 +396,13 @@ show_help() {
     echo "  reset                  Reset database completely (WARNING: destroys all data)"
     echo "  backup                 Create database backup"
     echo ""
+    echo -e "${YELLOW}Quick Number Commands:${NC}"
+    echo "  1                      Add Star Wars data"
+    echo "  2                      Create sample users"
+    echo "  3                      List users"
+    echo "  4                      Backup database"
+    echo "  5                      Reset database"
+    echo ""
     echo -e "${YELLOW}Examples:${NC}"
     echo "  $0 init"
     echo "  $0 migrate 'Add new table'"
@@ -385,7 +418,24 @@ show_help() {
 main() {
     check_venv
     
-    case "${1:-help}" in
+    case "${1:-menu}" in
+        # Quick number commands
+        "1"|"add-data")
+            add_sample_data
+            ;;
+        "2"|"create-users")
+            create_users
+            ;;
+        "3"|"list-users")
+            list_users
+            ;;
+        "4"|"backup")
+            backup_db
+            ;;
+        "5"|"reset")
+            reset_db
+            ;;
+        # Advanced commands
         "init")
             init_db
             ;;
@@ -404,26 +454,14 @@ main() {
         "current")
             show_current
             ;;
-        "add-data")
-            add_sample_data
-            ;;
-        "create-users")
-            create_users
-            ;;
         "remove-users")
             remove_users "$2"
             ;;
-        "list-users")
-            list_users
-            ;;
-        "reset")
-            reset_db
-            ;;
-        "backup")
-            backup_db
-            ;;
-        "help"|*)
+        "help")
             show_help
+            ;;
+        "menu"|*)
+            show_quick_menu
             ;;
     esac
 }

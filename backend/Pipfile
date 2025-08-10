@@ -1,0 +1,36 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+flask = "==3.1.1"
+sqlalchemy = "==2.0.42"
+flask-sqlalchemy = "==3.1.1"
+flask-migrate = "==4.1.0"
+flask-swagger = "==0.2.14"
+python-dotenv = "==1.1.1"
+flask-cors = "==6.0.1"
+gunicorn = "==23.0.0"
+flask-admin = "==1.6.1"
+wtforms = "==3.0.1"
+flask-jwt-extended = "==4.7.1"
+bcrypt = "==4.2.1"
+requests = "==2.32.3"
+pyyaml = "==6.0.2"
+alembic = "==1.16.4"
+
+[requires]
+python_version = "3.13"
+
+[scripts]
+start = "python app.py"
+dev = "python app.py"
+migrate = "flask db migrate"
+upgrade = "flask db upgrade"
+db-init = "../devOps/quick_db.sh init"
+db-data = "../devOps/quick_db.sh add-data"
+db-users = "../devOps/quick_db.sh create-users"
+fullstack = "../devOps/start_fullstack.sh"

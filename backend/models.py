@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
+import bcrypt
 
 db = SQLAlchemy()
 
@@ -11,6 +12,18 @@ class User(db.Model):
     password: Mapped[str] = mapped_column(nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False)
     favorites = db.relationship('Favorite', backref='user', lazy=True, cascade='all, delete-orphan')
+
+    def set_password(self, password):
+        """Hash and set password"""
+        password_bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        self.password = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+    
+    def check_password(self, password):
+        """Check if provided password matches the hashed password"""
+        password_bytes = password.encode('utf-8')
+        hashed_password_bytes = self.password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_password_bytes)
 
     def serialize(self):
         return {
