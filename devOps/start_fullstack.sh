@@ -14,7 +14,7 @@ start_backend() {
         echo "❌ Error: app.py not found in backend directory"
         exit 1
     fi
-    pipenv run python app.py &
+    pipenv run python3 app.py &
     BACKEND_PID=$!
     echo "✅ Backend started (PID: $BACKEND_PID) at http://127.0.0.1:3000"
     cd ..

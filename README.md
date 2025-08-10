@@ -32,12 +32,12 @@ cd frontend && npm install && cd ..
 
 ## Prerequisites
 
-- Python 3.7+
-- pipenv (`pip install pipenv`)
+- Python 3.7+ (use `python3` command on macOS)
+- pipenv (`pip3 install pipenv` on macOS)
 - Git
 - Node.js & npm
 
-**Note:** This repository includes fixed scripts that work with the actual project structure and use `pipenv` for Python environment management.
+**Note:** This repository includes fixed scripts that work with the actual project structure and use `pipenv` for Python environment management. On macOS, install pipenv using `pip3 install pipenv`.
 
 ## Installation
 
@@ -79,7 +79,7 @@ cd ..
 ./devOps/start_fullstack.sh
 
 # Or backend only
-cd backend && pipenv run python app.py
+cd backend && pipenv run python3 app.py
 ```
 
 ## Usage
@@ -186,6 +186,21 @@ salem-flask-rest-auth/
 
 ## Troubleshooting
 
+### macOS-Specific Notes
+
+On macOS, use `python3` instead of `python` for all commands:
+
+```bash
+# For installing pipenv
+pip3 install pipenv
+
+# For running scripts
+pipenv run python3 app.py
+
+# When manually running Python files
+python3 add_data.py
+```
+
 ### Setup Issues
 
 **Database Connection Errors:**
@@ -249,7 +264,7 @@ cd backend && pipenv install && cd ..
 
 ```bash
 # From backend directory only
-pipenv run python app.py     # Start backend only
+pipenv run python3 app.py     # Start backend only
 ```
 
 ### Common Issues & Solutions
@@ -258,6 +273,7 @@ pipenv run python app.py     # Start backend only
 2. **Missing package.json**: Frontend package.json is included (Vite/React project)
 3. **Port conflicts**: Backend uses 3000, frontend uses 3001
 4. **Migration errors**: Use `./devOps/quick_db.sh reset` to start fresh
+5. **Python command**: On macOS, use `python3` instead of `python` for all commands
 
 ````
 
