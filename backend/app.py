@@ -26,7 +26,7 @@ def create_app():
     jwt = JWTManager(app)
 
     # Simple SQLite database configuration
-    app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////Users/salemmohd/Documents/GitHub/salem-flask-rest-star/instance/database.db"
+    app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////Users/salemmohd/Documents/GitHub/salem-flask-rest-auth/instance/database.db"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)

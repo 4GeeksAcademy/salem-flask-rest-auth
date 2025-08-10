@@ -9,12 +9,12 @@ echo ""
 # Function to start backend
 start_backend() {
     echo "🚀 Starting Flask Backend..."
-    cd "$(dirname "$0")/backend"
+    cd "$(dirname "$0")/../backend"
     if [ ! -f "app.py" ]; then
         echo "❌ Error: app.py not found in backend directory"
         exit 1
     fi
-    ../.venv/bin/python app.py &
+    pipenv run python app.py &
     BACKEND_PID=$!
     echo "✅ Backend started (PID: $BACKEND_PID) at http://127.0.0.1:3000"
     cd ..
@@ -23,7 +23,7 @@ start_backend() {
 # Function to start frontend
 start_frontend() {
     echo "⚛️  Starting React Frontend..."
-    cd "$(dirname "$0")/frontend"
+    cd "$(dirname "$0")/../frontend"
     if [ ! -f "package.json" ]; then
         echo "❌ Error: package.json not found in frontend directory"
         exit 1

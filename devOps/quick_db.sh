@@ -16,8 +16,7 @@ NC='\033[0m' # No Color
 
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-BACKEND_DIR="$SCRIPT_DIR/backend"
-VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
+BACKEND_DIR="$SCRIPT_DIR/../backend"
 
 # Function to print colored output
 print_status() {
@@ -42,11 +41,12 @@ print_header() {
     echo -e "${PURPLE}================================${NC}"
 }
 
-# Check if virtual environment exists
-check_venv() {
-    if [ ! -f "$VENV_PYTHON" ]; then
-        print_error "Virtual environment not found at $VENV_PYTHON"
-        print_status "Please run: python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt"
+# Check if we're in a pipenv environment
+check_pipenv() {
+    cd "$BACKEND_DIR"
+    if [ ! -f "Pipfile" ]; then
+        print_error "Pipfile not found in backend directory"
+        print_status "Please ensure you're running this from the project root and backend/Pipfile exists"
         exit 1
     fi
 }
@@ -57,13 +57,13 @@ init_db() {
     cd "$BACKEND_DIR"
     
     print_status "Initializing Alembic migrations..."
-    FLASK_APP=app.py $VENV_PYTHON -m flask db init 2>/dev/null || print_warning "Migration folder already exists"
+    FLASK_APP=app.py pipenv run flask db init 2>/dev/null || print_warning "Migration folder already exists"
     
     print_status "Creating initial migration..."
-    FLASK_APP=app.py $VENV_PYTHON -m flask db migrate -m "Initial migration"
+    FLASK_APP=app.py pipenv run flask db migrate -m "Initial migration"
     
     print_status "Applying migrations..."
-    FLASK_APP=app.py $VENV_PYTHON -m flask db upgrade
+    FLASK_APP=app.py pipenv run flask db upgrade
     
     print_success "Database initialized successfully!"
 }
@@ -74,7 +74,7 @@ migrate_db() {
     
     local message="${1:-Auto migration}"
     print_status "Creating migration: $message"
-    FLASK_APP=app.py $VENV_PYTHON -m flask db migrate -m "$message"
+    FLASK_APP=app.py pipenv run flask db migrate -m "$message"
     
     print_success "Migration created successfully!"
     print_status "Don't forget to run: $0 upgrade"
@@ -85,7 +85,7 @@ upgrade_db() {
     cd "$BACKEND_DIR"
     
     print_status "Applying pending migrations..."
-    FLASK_APP=app.py $VENV_PYTHON -m flask db upgrade
+    FLASK_APP=app.py pipenv run flask db upgrade
     
     print_success "Database upgraded successfully!"
 }
@@ -96,7 +96,7 @@ downgrade_db() {
     
     local revision="${1:--1}"
     print_warning "Downgrading database to revision: $revision"
-    FLASK_APP=app.py $VENV_PYTHON -m flask db downgrade "$revision"
+    FLASK_APP=app.py pipenv run flask db downgrade "$revision"
     
     print_success "Database downgraded successfully!"
 }
@@ -105,14 +105,14 @@ show_history() {
     print_header "Migration History"
     cd "$BACKEND_DIR"
     
-    FLASK_APP=app.py $VENV_PYTHON -m flask db history
+    FLASK_APP=app.py pipenv run flask db history
 }
 
 show_current() {
     print_header "Current Migration"
     cd "$BACKEND_DIR"
     
-    FLASK_APP=app.py $VENV_PYTHON -m flask db current
+    FLASK_APP=app.py pipenv run flask db current
 }
 
 # Data management functions
@@ -121,7 +121,7 @@ add_sample_data() {
     cd "$BACKEND_DIR"
     
     print_status "Running add_data.py script..."
-    $VENV_PYTHON add_data.py
+    pipenv run python add_data.py
     
     print_success "Sample data added successfully!"
 }
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 EOF
     
     print_status "Creating sample users..."
-    $VENV_PYTHON bulk_users.py
+    pipenv run python bulk_users.py
     
     # Clean up temporary script
     rm bulk_users.py
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     remove_users_by_pattern('$pattern')
 EOF
     
-    $VENV_PYTHON remove_users.py
+    pipenv run python remove_users.py
     
     # Clean up temporary script
     rm remove_users.py
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     list_all_users()
 EOF
     
-    $VENV_PYTHON list_users.py
+    pipenv run python list_users.py
     
     # Clean up temporary script
     rm list_users.py
@@ -340,7 +340,7 @@ backup_db() {
     mkdir -p "$SCRIPT_DIR/backups"
     
     print_status "Creating backup: $backup_name"
-    cp "$SCRIPT_DIR/instance/database.db" "$backup_path"
+    cp "$SCRIPT_DIR/../instance/database.db" "$backup_path"
     
     print_success "Database backed up to: $backup_path"
 }
@@ -416,7 +416,7 @@ show_help() {
 
 # Main script logic
 main() {
-    check_venv
+    check_pipenv
     
     case "${1:-menu}" in
         # Quick number commands
