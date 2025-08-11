@@ -4,21 +4,17 @@ const BASE_URL = '/api';
 // Authentication API functions
 export const loginUser = async (email, password) => {
   try {
-    const response = await fetch(`${BASE_URL}/auth/login`, {
+    const response = await fetch(`${BASE_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // Include cookies for session
       body: JSON.stringify({ email, password })
     });
-    
     const data = await response.json();
-    
     if (!response.ok) {
       throw new Error(data.msg || 'Login failed');
     }
-    
     return data;
   } catch (error) {
     console.error('Login error:', error);
@@ -26,32 +22,24 @@ export const loginUser = async (email, password) => {
   }
 };
 
+// No logout endpoint in backend, so just clear local storage/token if needed
 export const logoutUser = async () => {
-  try {
-    const response = await fetch(`${BASE_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Logout error:', error);
-    throw error;
-  }
+  // Implement client-side logout if needed
+  return { msg: 'Logged out (client only)' };
 };
 
-export const getCurrentUser = async () => {
+export const getCurrentUser = async (token) => {
   try {
-    const response = await fetch(`${BASE_URL}/auth/me`, {
-      credentials: 'include',
+    const response = await fetch(`${BASE_URL}/profile`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
-    
     if (!response.ok) {
       return null; // Not authenticated
     }
-    
     const data = await response.json();
-    return data.user;
+    return data;
   } catch (error) {
     console.error('Get current user error:', error);
     return null;
@@ -181,29 +169,28 @@ export const getFavorites = async () => {
   }
 };
 
-export const addFavorite = async (type, id) => {
+
+// Add favorite using backend /api/favorites POST
+export const addFavorite = async (type, id, token) => {
   try {
-    // Map frontend types to backend routes
     const typeMap = {
-      character: 'people',
-      planet: 'planet',
-      vehicle: 'vehicle'
+      character: 'people_id',
+      planet: 'planet_id',
+      vehicle: 'vehicle_id'
     };
-    
-    const backendType = typeMap[type] || type;
-    const res = await fetch(`/api/favorite/${backendType}/${id}`, {
+    const body = { [typeMap[type]]: id };
+    const res = await fetch(`/api/favorites`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
-      credentials: 'include'
+      body: JSON.stringify(body)
     });
-    
     if (!res.ok) {
       const error = await res.json();
       throw new Error(error.msg || 'Failed to add favorite');
     }
-    
     return await res.json();
   } catch (error) {
     console.error("Error adding favorite:", error);
@@ -211,26 +198,19 @@ export const addFavorite = async (type, id) => {
   }
 };
 
-export const removeFavorite = async (type, id) => {
+// Remove favorite using backend /api/favorites/<id> DELETE
+export const removeFavorite = async (favoriteId, token) => {
   try {
-    // Map frontend types to backend routes
-    const typeMap = {
-      character: 'people',
-      planet: 'planet',
-      vehicle: 'vehicle'
-    };
-    
-    const backendType = typeMap[type] || type;
-    const res = await fetch(`/api/favorite/${backendType}/${id}`, {
+    const res = await fetch(`/api/favorites/${favoriteId}`, {
       method: "DELETE",
-      credentials: 'include'
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
     });
-    
     if (!res.ok) {
       const error = await res.json();
       throw new Error(error.msg || 'Failed to remove favorite');
     }
-    
     return await res.json();
   } catch (error) {
     console.error("Error removing favorite:", error);

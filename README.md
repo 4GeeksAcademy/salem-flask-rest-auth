@@ -1,6 +1,16 @@
 # Star Wars Flask REST API
 
-Flask REST API for managing Star Wars characters, planets, and vehicles with JWT authentication and admin interface.
+Flask REST API for managing Star Wars characters, planets, and vehicles with JWT authentication and admin interface. Features a clean, modular code structure with minimal redundancy.
+
+## Features
+
+- **Modular Architecture**: Clean separation of concerns with dedicated modules
+- **JWT Authentication**: Secure API endpoints with JWT tokens
+- **Admin Interface**: Built-in admin panel for data management
+- **API Documentation**: Interactive Swagger UI documentation
+- **Pagination**: Efficient data retrieval with pagination support
+- **Environment Variables**: Easy configuration through environment variables
+- **Database Agnostic**: Works with SQLite by default, compatible with PostgreSQL
 
 ## Quick Start
 
@@ -276,6 +286,31 @@ pipenv run python3 app.py     # Start backend only
 5. **Python command**: On macOS, use `python3` instead of `python` for all commands
 
 ````
+
+## Code Structure
+
+The project follows a modular approach to minimize redundancy and improve maintainability:
+
+```
+backend/
+├── app.py              # Application factory and core setup
+├── routes.py           # API endpoint definitions
+├── models.py           # Database models and relationships
+├── admin.py            # Admin interface configuration
+├── utils.py            # Helper functions and utilities
+├── jwt_utils.py        # JWT authentication helpers
+├── templates/          # HTML templates for web interfaces
+│   └── main/           # Landing page and API documentation
+└── static/             # Static assets and API specifications
+```
+
+### Key Design Principles
+
+1. **DRY (Don't Repeat Yourself)**: Shared functionality is extracted into helper functions
+2. **Separation of Concerns**: Each module has a specific responsibility
+3. **Configuration via Environment**: Settings are managed via environment variables
+4. **Generic Handlers**: Common patterns use shared code for similar endpoints
+5. **Factory Pattern**: Application is created via a factory for flexibility in testing and deployment
 
 ## Development
 
