@@ -11,7 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
+CYAN='\033[0;36m' 
 NC='\033[0m' # No Color
 
 # Get the directory where the script is located
@@ -169,7 +169,20 @@ def create_sample_users():
                 created_count += 1
                 print(f"✅ Created user: {user_data['email']}")
             else:
+                user = existing
                 print(f"⚠️  User {user_data['email']} already exists")
+
+            # Always ensure admin@starwars.com has the 'admin' role
+            if user.email == "admin@starwars.com":
+                from models import Role
+                admin_role = Role.query.filter_by(name="admin").first()
+                if not admin_role:
+                    admin_role = Role(name="admin")
+                    db.session.add(admin_role)
+                    db.session.commit()
+                if admin_role not in user.roles:
+                    user.roles.append(admin_role)
+                    print("🔑 Assigned 'admin' role to admin@starwars.com")
         
         try:
             db.session.commit()

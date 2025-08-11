@@ -11,7 +11,7 @@ start_backend() {
     echo "🚀 Starting Flask Backend..."
     cd "$(dirname "$0")/../backend"
     if [ ! -f "app.py" ]; then
-        echo "❌ Error: app.py not found in backend directory"
+        echo "❌ Error: app.py not found in backend directory" 
         exit 1
     fi
     pipenv run python3 app.py &
