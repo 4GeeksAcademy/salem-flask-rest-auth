@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { loginUser } from '../data/starWarsData.jsx';
 import useGlobalReducer from '../hooks/useGlobalReducer.jsx';
 
@@ -97,7 +97,7 @@ const Login = ({ onLoginSuccess }) => {
           To sign up, please contact the admin and pay a small fee of 1b.
           Test;
           user: 1@1.com
-          pass: 123456
+          pass: 1234567890
         </p>
         </form>
       </div>

@@ -1,142 +1,226 @@
 import os
-import secrets
+import logging
+from pathlib import Path
 
 from dotenv import load_dotenv
-from flasgger import Swagger
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from flask_restx import Api
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_security.core import Security
 from flask_security.datastore import SQLAlchemyUserDatastore
-from models import Role, User, db
-from routes import register_routes
+from werkzeug.exceptions import HTTPException
 
-# Load environment variables from .env file before anything else
+# Extensions: instantiate at module level, init in factory
+from models import Role, User, db
+
+# Load environment variables once at module level
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+# Instantiate extensions (no app bound yet)
+migrate = Migrate()
+jwt = JWTManager()
+cors = CORS()
+security = Security()
+
+
+def validate_required_env_vars():
+    """Validate that all required environment variables are set."""
+    required_vars = [
+        "SECRET_KEY",
+        "JWT_SECRET_KEY", 
+        "SECURITY_PASSWORD_SALT",
+        "CORS_ORIGINS"
+    ]
+    
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    
+    if missing_vars:
+        raise RuntimeError(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
 
 
 def create_app():
     """Create and configure the Flask application instance."""
-    flask_app = Flask(__name__)
-    flask_app.url_map.strict_slashes = False
+    
+    # Validate environment variables first
+    validate_required_env_vars()
+    
+    app = Flask(__name__)
+    app.url_map.strict_slashes = False
+    
+    # Configure logging
+    if not app.debug:
+        logging.basicConfig(level=logging.INFO)
+    
+    # Load config from environment
+    app.config.update({
+        "SECRET_KEY": os.getenv("SECRET_KEY"),
+        "JWT_SECRET_KEY": os.getenv("JWT_SECRET_KEY"),
+        "SECURITY_PASSWORD_SALT": os.getenv("SECURITY_PASSWORD_SALT"),
+        "SECURITY_PASSWORD_HASH": "bcrypt",  # Avoid argon2 dependency
+        "JWT_ACCESS_TOKEN_EXPIRES": int(os.getenv("JWT_EXPIRES_IN_SECONDS", 86400)),
+        "SQLALCHEMY_TRACK_MODIFICATIONS": False
+    })
 
-    @flask_app.route("/")
+    # Database configuration - more robust path handling
+    db_dir = Path(__file__).parent / "instance"
+    db_dir.mkdir(exist_ok=True)  # Ensure instance directory exists
+    db_path = db_dir / "database.db"
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path.absolute()}"
+
+    # CORS configuration with validation
+    cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+    if not cors_origins:
+        app.logger.warning("CORS_ORIGINS not set - using default localhost origins")
+        cors_origins = "http://localhost:3000,http://localhost:3001"
+    
+    origins_list = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
+    # Initialize extensions
+    db.init_app(app)
+    migrate.init_app(app, db)
+    jwt.init_app(app)
+    cors.init_app(app, resources={r"/*": {"origins": origins_list}})
+
+    # Initialize Flask-RESTX API and register namespaces
+    try:
+        from routes import people_ns, planets_ns, vehicles_ns, favorites_ns
+        api = Api(
+            app, 
+            doc='/swagger/',
+            title='Star Wars API',
+            version='1.0',
+            description='A Star Wars themed REST API'
+        )
+        api.add_namespace(people_ns)
+        api.add_namespace(planets_ns)
+        api.add_namespace(vehicles_ns)
+        api.add_namespace(favorites_ns)
+    except ImportError as e:
+        app.logger.error(f"Failed to import routes: {e}")
+        raise
+
+    # Setup Flask-Security
+    user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+    security.init_app(app, user_datastore)
+
+    # Register admin interface
+    try:
+        from admin import init_admin
+        init_admin(app)
+    except ImportError as e:
+        app.logger.warning(f"Admin interface not available: {e}")
+
+    # Register routes and error handlers
+    register_routes(app)
+    register_error_handlers(app)
+
+    # Database connection test (not in testing environment)
+    if os.getenv("FLASK_ENV") != "testing":
+        test_database_connection(app)
+
+    return app
+
+
+def register_routes(app):
+    """Register application routes."""
+    
+    @app.route("/", endpoint="root_page")
     def root():
         return """
         <html>
-        <head><title>Star Wars Flask REST API</title></head>
-        <body style="font-family: sans-serif; max-width: 600px; margin: 40px auto;">
+        <head>
+            <title>Star Wars Flask REST API</title>
+            <style>
+                body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+                .link-list { font-size: 1.2em; }
+                .footer { color: #888; margin-top: 2em; }
+            </style>
+        </head>
+        <body>
             <h1>🚀 Star Wars Flask REST API</h1>
-            <ul style="font-size: 1.2em;">
-                <li><a href="/api/docs">API Docs (Swagger UI)</a></li>
-                <li><a href="/admin">Admin Panel</a> (login required)</li>
+            <ul class="link-list">
+                <li><a href="/swagger/">API Documentation (Swagger UI)</a></li>
+                <li><a href="/admin/">Admin Panel</a> (login required)</li>
                 <li><a href="http://localhost:3001">Frontend App</a></li>
             </ul>
-            <p style="color: #888;">For setup and usage, see the <a href="https://github.com/4GeeksAcademy/salem-flask-rest-auth">README</a>.</p>
+            <p class="footer">
+                For setup and usage instructions, see the 
+                <a href="https://github.com/4GeeksAcademy/salem-flask-rest-auth">README</a>.
+            </p>
         </body>
         </html>
         """
 
-    # Swagger/OpenAPI config
-    swagger_template = {
-        "swagger": "2.0",
-        "info": {
-            "title": "Star Wars REST API",
-            "description": "API for Star Wars data with JWT and admin.",
-            "version": "1.0.0",
-        },
-        "basePath": "/",
-        "schemes": ["http"],
-    }
-    swagger_config = {
-        "headers": [],
-        "specs": [
-            {
-                "endpoint": "apispec_1",
-                "route": "/api/docs/apispec_1.json",
-                "rule_filter": lambda rule: True,  # all endpoints
-                "model_filter": lambda tag: True,  # all models
-            }
-        ],
-        "swagger_ui": True,
-        "specs_route": "/api/docs/",
-    }
-    Swagger(flask_app, template=swagger_template, config=swagger_config)
+    @app.route("/health")
+    def health_check():
+        """Simple health check endpoint."""
+        return jsonify({
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
-    from admin import setup_admin
 
-    setup_admin(flask_app)
-
-    # Setup Flask-Security
-    user_datastore = SQLAlchemyUserDatastore(db, User, Role)
-    Security(flask_app, user_datastore)
-
-    # Register all API routes (required for Swagger docs)
-    register_routes(flask_app)
-
-    # Require secrets from environment, no fallbacks
-    secret_key = os.getenv("SECRET_KEY")
-    jwt_secret = os.getenv("JWT_SECRET_KEY")
-    if not secret_key or not jwt_secret:
-        raise RuntimeError(
-            "SECRET_KEY and JWT_SECRET_KEY must be set as environment variables in production."
-        )
-    flask_app.config["SECRET_KEY"] = secret_key
-    flask_app.config["JWT_SECRET_KEY"] = jwt_secret
-    jwt_expiry = os.getenv("JWT_EXPIRES_IN_SECONDS")
-    flask_app.config["JWT_ACCESS_TOKEN_EXPIRES"] = (
-        int(jwt_expiry) if jwt_expiry else 86400
-    )
-    JWTManager(flask_app)
-
-    db_path = os.environ.get("DATABASE_URL") or os.path.join(
-        flask_app.instance_path, "database.db"
-    )
-    flask_app.config["SQLALCHEMY_DATABASE_URI"] = (
-        db_path if db_path.startswith("postgres://") else f"sqlite:///{db_path}"
-    )
-    flask_app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    db.init_app(flask_app)
-    if os.getenv("FLASK_ENV") != "testing":
-        with flask_app.app_context():
-            try:
-                from sqlalchemy import text
-
-                db.session.execute(text("SELECT 1"))
-            except Exception as e:
-                flask_app.logger.error("Database connection error: %s", str(e))
-    Migrate(flask_app, db)
-    cors_origins = os.getenv("CORS_ORIGINS")
-    if not cors_origins:
-        raise RuntimeError(
-            "CORS_ORIGINS must be set to a comma-separated list of trusted domains in production."
-        )
-    CORS(flask_app, resources={r"/*": {"origins": cors_origins.split(",")}})
-
-    # Context7 best practice: Return JSON for all API errors
-    from flask import jsonify, request
-    from werkzeug.exceptions import HTTPException
-
-    @flask_app.errorhandler(HTTPException)
-    def handle_api_exception(e):
-        if request.path.startswith("/api/"):
+def register_error_handlers(app):
+    """Register application error handlers."""
+    
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        """Handle HTTP exceptions with JSON responses for API routes."""
+        if request.path.startswith("/api/") or request.path.startswith("/swagger/"):
             response = e.get_response()
-            response.data = jsonify(
-                {
-                    "code": e.code,
-                    "name": e.name,
-                    "description": e.description,
-                }
-            ).data
+            response.data = jsonify({
+                "code": e.code,
+                "name": e.name,
+                "description": e.description,
+                "path": request.path
+            }).data
             response.content_type = "application/json"
             return response
         return e
 
-    return flask_app
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(e):
+        """Log and handle all unhandled exceptions."""
+        app.logger.error("Unhandled Exception", exc_info=e)
+        
+        # Return JSON for API routes, HTML for others
+        if request.path.startswith("/api/") or request.path.startswith("/swagger/"):
+            return jsonify({
+                "error": "Internal server error",
+                "message": str(e) if app.debug else "An unexpected error occurred"
+            }), 500
+        
+        # For non-API routes, you might want to render an error template
+        return f"<h1>500 Internal Server Error</h1><p>An unexpected error occurred.</p>", 500
+
+
+def test_database_connection(app):
+    """Test database connection on startup."""
+    with app.app_context():
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("SELECT 1"))
+            app.logger.info("Database connection successful")
+        except Exception as e:
+            app.logger.error("Database connection error: %s", str(e))
+            raise
 
 
 if __name__ == "__main__":
+    from datetime import datetime
+    
     application = create_app()
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
-    application.run(host="0.0.0.0", port=3000, debug=debug_mode)
+    port = int(os.environ.get("PORT", 3000))
+    
+    application.logger.info(f"Starting Flask application on port {port}")
+    application.run(
+        host="0.0.0.0", 
+        port=port, 
+        debug=debug_mode, 
+        use_reloader=False
+    )

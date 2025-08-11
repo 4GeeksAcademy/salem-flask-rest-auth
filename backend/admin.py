@@ -2,8 +2,10 @@
 
 import os
 
-from flask_admin import Admin
+from flask import flash, redirect, url_for
+from flask_admin import Admin, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
+from flask_login import current_user
 from markupsafe import Markup
 from models import Favorite, People, Planet, User, Vehicle, db
 from wtforms import PasswordField
@@ -71,25 +73,75 @@ class FavoriteView(ModelView):
     }
 
 
-def setup_admin(app):
-    """Configure and initialize Flask-Admin with custom model views."""
-    app.secret_key = os.environ.get("FLASK_APP_KEY", "sample key")
+class SecureAdminIndexView(AdminIndexView):
+    """Secure admin index view that requires admin role."""
+    
+    def is_accessible(self):
+        return current_user.is_authenticated and current_user.has_role("admin")
+
+    def inaccessible_callback(self, name, **kwargs):
+        flash("You must be an admin to access this page.", "error")
+        return redirect(url_for("security.login"))
+
+
+class SecureModelView(ModelView):
+    """Base secure model view that requires admin role."""
+    
+    def is_accessible(self):
+        return current_user.is_authenticated and current_user.has_role("admin")
+
+    def inaccessible_callback(self, name, **kwargs):
+        flash("You must be an admin to access this page.", "error")
+        return redirect(url_for("security.login"))
+
+
+class SecureUserView(UserView, SecureModelView):
+    """Secure user view combining UserView functionality with security."""
+    pass
+
+
+class SecurePeopleView(PeopleView, SecureModelView):
+    """Secure people view with image preview and admin access control."""
+    pass
+
+
+class SecurePlanetView(PlanetView, SecureModelView):
+    """Secure planet view with image preview and admin access control."""
+    pass
+
+
+class SecureVehicleView(VehicleView, SecureModelView):
+    """Secure vehicle view with image preview and admin access control."""
+    pass
+
+
+class SecureFavoriteView(FavoriteView, SecureModelView):
+    """Secure favorite view with admin access control."""
+    pass
+
+
+def init_admin(app):
+    """Initialize Flask-Admin and register with the app."""
+    # Don't override the secret key if it's already set
+    if not app.secret_key:
+        app.secret_key = os.environ.get("FLASK_APP_KEY", "sample key")
+    
+    # Set Flask-Admin theme
     app.config["FLASK_ADMIN_SWATCH"] = "cerulean"
-    admin = Admin(app, name="Star Wars Admin", template_mode="bootstrap3")
-    # Restrict admin to authenticated users with 'admin' role using Flask-Security
-    from flask import flash, redirect, url_for
-    from flask_login import current_user
 
-    class SecureModelView(UserView):
-        def is_accessible(self):
-            return current_user.is_authenticated and current_user.has_role("admin")
-
-        def inaccessible_callback(self, name, **kwargs):
-            flash("You must be an admin to access this page.", "error")
-            return redirect(url_for("security.login"))
-
-    admin.add_view(SecureModelView(User, db.session))
-    admin.add_view(PeopleView(People, db.session))
-    admin.add_view(PlanetView(Planet, db.session))
-    admin.add_view(VehicleView(Vehicle, db.session))
-    admin.add_view(FavoriteView(Favorite, db.session))
+    # Initialize admin with secure index view
+    admin = Admin(
+        app,
+        name="Star Wars Admin",
+        template_mode="bootstrap3",
+        index_view=SecureAdminIndexView(),
+    )
+    
+    # Add secure model views
+    admin.add_view(SecureUserView(User, db.session, name="Users"))
+    admin.add_view(SecurePeopleView(People, db.session, name="Characters"))
+    admin.add_view(SecurePlanetView(Planet, db.session, name="Planets"))
+    admin.add_view(SecureVehicleView(Vehicle, db.session, name="Vehicles"))
+    admin.add_view(SecureFavoriteView(Favorite, db.session, name="Favorites"))
+    
+    return admin

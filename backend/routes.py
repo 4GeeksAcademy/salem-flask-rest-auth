@@ -1,244 +1,341 @@
 # routes.py
-# This file contains all route registrations and route logic for the Flask app.
+"""
+Flask-RESTX API routes for the Star Wars REST API.
+Provides endpoints for people, planets, vehicles, and user favorites.
+"""
 
-from flask import jsonify, request
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask import request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_restx import Namespace, Resource, fields
+from sqlalchemy.exc import IntegrityError
 from models import Favorite, People, Planet, User, Vehicle, db
 
 
-def register_routes(app):
+# --- API Models for Documentation ---
 
-    # Example protected route
-    @app.route("/api/profile", methods=["GET"], endpoint="profile_api")
-    @jwt_required()
-    def profile():
-        """
-        Get user profile
-        ---
-        tags:
-            - User
-        security:
-            - Bearer: []
-        responses:
-            200:
-                description: User profile
-            404:
-                description: User not found
-        """
-        current_user_id = get_jwt_identity()
-        if not current_user_id:
-            return jsonify({"msg": "Missing or invalid JWT"}), 401
-        user = User.query.get(current_user_id)
-        if not user:
-            return jsonify({"msg": "User not found"}), 404
-        # Context7 best practice: return a complete, API-friendly user payload
-        return jsonify(user.serialize()), 200
+# Person models
+person_model_fields = {
+    'id': fields.Integer(readonly=True, description='Person unique identifier'),
+    'name': fields.String(required=True, description='Person name'),
+    'gender': fields.String(description='Person gender'),
+    'birth_year': fields.String(description='Birth year'),
+    'image_url': fields.String(description='Person image URL')
+}
 
-    # CRUD for People
-    @app.route("/api/people", methods=["GET"], endpoint="get_people_api")
-    def get_people():
-        """
-        Get all people
-        ---
-        tags:
-            - People
-        responses:
-            200:
-                description: List of people
-        """
-        people = People.query.all()
-        return jsonify([p.serialize() for p in people])
+# Planet models
+planet_model_fields = {
+    'id': fields.Integer(readonly=True, description='Planet unique identifier'),
+    'name': fields.String(required=True, description='Planet name'),
+    'climate': fields.String(description='Planet climate'),
+    'population': fields.String(description='Planet population'),
+    'image_url': fields.String(description='Planet image URL')
+}
 
-    @app.route(
-        "/api/people/<int:person_id>", methods=["GET"], endpoint="get_person_api"
-    )
-    def get_person(person_id):
-        """
-        Get person by ID
-        ---
-        tags:
-            - People
-        parameters:
-            - in: path
-                name: person_id
-                type: integer
-                required: true
-        responses:
-            200:
-                description: Person found
-            404:
-                description: Person not found
-        """
+# Vehicle models
+vehicle_model_fields = {
+    'id': fields.Integer(readonly=True, description='Vehicle unique identifier'),
+    'name': fields.String(required=True, description='Vehicle name'),
+    'model': fields.String(description='Vehicle model'),
+    'manufacturer': fields.String(description='Vehicle manufacturer'),
+    'image_url': fields.String(description='Vehicle image URL')
+}
+
+
+
+
+# --- PEOPLE NAMESPACE ---
+people_ns = Namespace('people', description='Star Wars characters/people operations', path='/api')
+
+person_model = people_ns.model('Person', person_model_fields)
+
+@people_ns.route('/people')
+class PeopleList(Resource):
+    @people_ns.marshal_list_with(person_model)
+    @people_ns.doc('list_people')
+    def get(self):
+        """Fetch all Star Wars characters"""
+        try:
+            people = People.query.all()
+            return [person.serialize() for person in people]
+        except Exception as e:
+            people_ns.abort(500, f"Error fetching people: {str(e)}")
+
+@people_ns.route('/people/<int:person_id>')
+@people_ns.param('person_id', 'The person identifier')
+class PersonResource(Resource):
+    @people_ns.marshal_with(person_model)
+    @people_ns.doc('get_person')
+    @people_ns.response(404, 'Person not found')
+    def get(self, person_id):
+        """Fetch a character by ID"""
         person = People.query.get(person_id)
         if not person:
-            return jsonify({"msg": "Person not found"}), 404
-        return jsonify(person.serialize())
+            people_ns.abort(404, f"Person with ID {person_id} not found")
+        return person.serialize()
 
-    # CRUD for Planets
-    @app.route("/api/planets", methods=["GET"], endpoint="get_planets_api")
-    def get_planets():
-        """
-        Get all planets
-        ---
-        tags:
-            - Planets
-        responses:
-            200:
-                description: List of planets
-        """
-        planets = Planet.query.all()
-        return jsonify([p.serialize() for p in planets])
 
-    @app.route(
-        "/api/planets/<int:planet_id>", methods=["GET"], endpoint="get_planet_api"
-    )
-    def get_planet(planet_id):
-        """
-        Get planet by ID
-        ---
-        tags:
-            - Planets
-        parameters:
-            - in: path
-                name: planet_id
-                type: integer
-                required: true
-        responses:
-            200:
-                description: Planet found
-            404:
-                description: Planet not found
-        """
+# --- PLANETS NAMESPACE ---
+planets_ns = Namespace('planets', description='Star Wars planets operations', path='/api')
+
+planet_model = planets_ns.model('Planet', planet_model_fields)
+
+@planets_ns.route('/planets')
+class PlanetsList(Resource):
+    @planets_ns.marshal_list_with(planet_model)
+    @planets_ns.doc('list_planets')
+    def get(self):
+        """Fetch all Star Wars planets"""
+        try:
+            planets = Planet.query.all()
+            return [planet.serialize() for planet in planets]
+        except Exception as e:
+            planets_ns.abort(500, f"Error fetching planets: {str(e)}")
+
+@planets_ns.route('/planets/<int:planet_id>')
+@planets_ns.param('planet_id', 'The planet identifier')
+class PlanetResource(Resource):
+    @planets_ns.marshal_with(planet_model)
+    @planets_ns.doc('get_planet')
+    @planets_ns.response(404, 'Planet not found')
+    def get(self, planet_id):
+        """Fetch a planet by ID"""
         planet = Planet.query.get(planet_id)
         if not planet:
-            return jsonify({"msg": "Planet not found"}), 404
-        return jsonify(planet.serialize())
+            planets_ns.abort(404, f"Planet with ID {planet_id} not found")
+        return planet.serialize()
 
-    # CRUD for Vehicles
-    @app.route("/api/vehicles", methods=["GET"], endpoint="get_vehicles_api")
-    def get_vehicles():
-        """
-        Get all vehicles
-        ---
-        tags:
-            - Vehicles
-        responses:
-            200:
-                description: List of vehicles
-        """
-        vehicles = Vehicle.query.all()
-        return jsonify([v.serialize() for v in vehicles])
 
-    @app.route(
-        "/api/vehicles/<int:vehicle_id>", methods=["GET"], endpoint="get_vehicle_api"
-    )
-    def get_vehicle(vehicle_id):
-        """
-        Get vehicle by ID
-        ---
-        tags:
-            - Vehicles
-        parameters:
-            - in: path
-                name: vehicle_id
-                type: integer
-                required: true
-        responses:
-            200:
-                description: Vehicle found
-            404:
-                description: Vehicle not found
-        """
+# --- VEHICLES NAMESPACE ---
+vehicles_ns = Namespace('vehicles', description='Star Wars vehicles operations', path='/api')
+
+vehicle_model = vehicles_ns.model('Vehicle', vehicle_model_fields)
+
+@vehicles_ns.route('/vehicles')
+class VehiclesList(Resource):
+    @vehicles_ns.marshal_list_with(vehicle_model)
+    @vehicles_ns.doc('list_vehicles')
+    def get(self):
+        """Fetch all Star Wars vehicles"""
+        try:
+            vehicles = Vehicle.query.all()
+            return [vehicle.serialize() for vehicle in vehicles]
+        except Exception as e:
+            vehicles_ns.abort(500, f"Error fetching vehicles: {str(e)}")
+
+@vehicles_ns.route('/vehicles/<int:vehicle_id>')
+@vehicles_ns.param('vehicle_id', 'The vehicle identifier')
+class VehicleResource(Resource):
+    @vehicles_ns.marshal_with(vehicle_model)
+    @vehicles_ns.doc('get_vehicle')
+    @vehicles_ns.response(404, 'Vehicle not found')
+    def get(self, vehicle_id):
+        """Fetch a vehicle by ID"""
         vehicle = Vehicle.query.get(vehicle_id)
         if not vehicle:
-            return jsonify({"msg": "Vehicle not found"}), 404
-        return jsonify(vehicle.serialize())
+            vehicles_ns.abort(404, f"Vehicle with ID {vehicle_id} not found")
+        return vehicle.serialize()
 
-    # Favorites routes (add/remove/list)
-    @app.route("/api/favorites", methods=["GET"], endpoint="get_favorites_api")
-    @jwt_required()
-    def get_favorites():
-        """
-        Get all favorites for user
-        ---
-        tags:
-            - Favorites
-        security:
-            - Bearer: []
-        responses:
-            200:
-                description: List of favorites
-        """
-        user_id = get_jwt_identity()
-        favorites = Favorite.query.filter_by(user_id=user_id).all()
-        return jsonify([f.serialize() for f in favorites])
 
-    @app.route("/api/favorites", methods=["POST"], endpoint="add_favorite_api")
-    @jwt_required()
-    def add_favorite():
-        """
-        Add a favorite
-        ---
-        tags:
-            - Favorites
-        security:
-            - Bearer: []
-        parameters:
-            - in: body
-                name: body
-                schema:
-                    type: object
-                    properties:
-                        people_id:
-                            type: integer
-                        planet_id:
-                            type: integer
-                        vehicle_id:
-                            type: integer
-        responses:
-            200:
-                description: Favorite added
-        """
-        user_id = get_jwt_identity()
-        data = request.get_json()
-        favorite = Favorite()
-        favorite.user_id = user_id
-        favorite.people_id = data.get("people_id")
-        favorite.planet_id = data.get("planet_id")
-        favorite.vehicle_id = data.get("vehicle_id")
-        db.session.add(favorite)
-        db.session.commit()
-        return jsonify({"msg": "Favorite added"})
 
-    @app.route(
-        "/api/favorites/<int:favorite_id>",
-        methods=["DELETE"],
-        endpoint="delete_favorite_api",
-    )
+# --- FAVORITES NAMESPACE ---
+favorites_ns = Namespace('favorites', description='User favorites operations', path='/api')
+
+# Input models for favorites
+favorite_input_model = favorites_ns.model('FavoriteInput', {
+    'people_id': fields.Integer(description='ID of favorite character'),
+    'planet_id': fields.Integer(description='ID of favorite planet'),
+    'vehicle_id': fields.Integer(description='ID of favorite vehicle'),
+})
+
+# Favorite models (now that all referenced models are defined)
+favorite_model_fields = {
+    'id': fields.Integer(readonly=True, description='Favorite unique identifier'),
+    'user_id': fields.Integer(readonly=True, description='User ID'),
+    'favorite_type': fields.String(readonly=True, description='Type of favorite'),
+    'people': fields.Nested(person_model, allow_null=True),
+    'planet': fields.Nested(planet_model, allow_null=True),
+    'vehicle': fields.Nested(vehicle_model, allow_null=True),
+    'created_at': fields.String(readonly=True, description='Creation timestamp')
+}
+favorite_response_model = favorites_ns.model('Favorite', favorite_model_fields)
+
+# Response models
+message_model = favorites_ns.model('Message', {
+    'message': fields.String(description='Response message'),
+    'success': fields.Boolean(description='Operation success status')
+})
+
+@favorites_ns.route('/favorites')
+class FavoritesList(Resource):
     @jwt_required()
-    def delete_favorite(favorite_id):
-        """
-        Delete a favorite
-        ---
-        tags:
-            - Favorites
-        security:
-            - Bearer: []
-        parameters:
-            - in: path
-                name: favorite_id
-                type: integer
-                required: true
-        responses:
-            200:
-                description: Favorite deleted
-            404:
-                description: Favorite not found
-        """
-        user_id = get_jwt_identity()
-        favorite = Favorite.query.filter_by(id=favorite_id, user_id=user_id).first()
-        if not favorite:
-            return jsonify({"msg": "Favorite not found"}), 404
-        db.session.delete(favorite)
-        db.session.commit()
-        return jsonify({"msg": "Favorite deleted"})
+    @favorites_ns.marshal_list_with(favorite_response_model)
+    @favorites_ns.doc('list_favorites', security='jwt')
+    @favorites_ns.response(401, 'Authentication required')
+    def get(self):
+        """Get all favorites for the authenticated user"""
+        try:
+            user_id = get_jwt_identity()
+            favorites = Favorite.query.filter_by(user_id=user_id).all()
+            return [favorite.serialize() for favorite in favorites]
+        except Exception as e:
+            favorites_ns.abort(500, f"Error fetching favorites: {str(e)}")
+
+    @jwt_required()
+    @favorites_ns.expect(favorite_input_model)
+    @favorites_ns.marshal_with(message_model)
+    @favorites_ns.doc('add_favorite', security='jwt')
+    @favorites_ns.response(400, 'Bad request - validation error')
+    @favorites_ns.response(401, 'Authentication required')
+    @favorites_ns.response(409, 'Favorite already exists')
+    def post(self):
+        """Add a new favorite for the authenticated user"""
+        try:
+            user_id = get_jwt_identity()
+            data = request.get_json()
+            
+            # Validate input - exactly one favorite type should be provided
+            favorite_types = ['people_id', 'planet_id', 'vehicle_id']
+            provided_types = [key for key in favorite_types if data.get(key)]
+            
+            if len(provided_types) != 1:
+                favorites_ns.abort(400, "Exactly one favorite type (people_id, planet_id, or vehicle_id) must be provided")
+            
+            # Validate that the referenced item exists
+            favorite_type = provided_types[0]
+            item_id = data.get(favorite_type)
+            
+            if favorite_type == 'people_id':
+                if not People.query.get(item_id):
+                    favorites_ns.abort(404, f"Person with ID {item_id} not found")
+            elif favorite_type == 'planet_id':
+                if not Planet.query.get(item_id):
+                    favorites_ns.abort(404, f"Planet with ID {item_id} not found")
+            elif favorite_type == 'vehicle_id':
+                if not Vehicle.query.get(item_id):
+                    favorites_ns.abort(404, f"Vehicle with ID {item_id} not found")
+            
+            # Check if favorite already exists
+            existing_favorite = Favorite.query.filter_by(
+                user_id=user_id,
+                **{favorite_type: item_id}
+            ).first()
+            
+            if existing_favorite:
+                favorites_ns.abort(409, "This item is already in your favorites")
+            
+            # Create new favorite
+            favorite = Favorite(user_id=user_id)
+            setattr(favorite, favorite_type, item_id)
+            
+            db.session.add(favorite)
+            db.session.commit()
+            
+            return {
+                'message': 'Favorite added successfully',
+                'success': True
+            }, 201
+            
+        except IntegrityError:
+            db.session.rollback()
+            favorites_ns.abort(409, "This item is already in your favorites")
+        except Exception as e:
+            db.session.rollback()
+            favorites_ns.abort(500, f"Error adding favorite: {str(e)}")
+
+@favorites_ns.route('/favorites/<int:favorite_id>')
+@favorites_ns.param('favorite_id', 'The favorite identifier')
+class FavoriteResource(Resource):
+    @jwt_required()
+    @favorites_ns.marshal_with(message_model)
+    @favorites_ns.doc('delete_favorite', security='jwt')
+    @favorites_ns.response(401, 'Authentication required')
+    @favorites_ns.response(404, 'Favorite not found')
+    def delete(self, favorite_id):
+        """Delete a specific favorite"""
+        try:
+            user_id = get_jwt_identity()
+            favorite = Favorite.query.filter_by(
+                id=favorite_id, 
+                user_id=user_id
+            ).first()
+            
+            if not favorite:
+                favorites_ns.abort(404, "Favorite not found or doesn't belong to you")
+            
+            db.session.delete(favorite)
+            db.session.commit()
+            
+            return {
+                'message': 'Favorite deleted successfully',
+                'success': True
+            }, 200
+            
+        except Exception as e:
+            db.session.rollback()
+            favorites_ns.abort(500, f"Error deleting favorite: {str(e)}")
+
+    @jwt_required()
+    @favorites_ns.marshal_with(favorite_response_model)
+    @favorites_ns.doc('get_favorite', security='jwt')
+    @favorites_ns.response(401, 'Authentication required')
+    @favorites_ns.response(404, 'Favorite not found')
+    def get(self, favorite_id):
+        """Get a specific favorite by ID"""
+        try:
+            user_id = get_jwt_identity()
+            favorite = Favorite.query.filter_by(
+                id=favorite_id, 
+                user_id=user_id
+            ).first()
+            
+            if not favorite:
+                favorites_ns.abort(404, "Favorite not found or doesn't belong to you")
+            
+            return favorite.serialize()
+            
+        except Exception as e:
+            favorites_ns.abort(500, f"Error fetching favorite: {str(e)}")
+
+
+# --- ADDITIONAL UTILITY ENDPOINTS ---
+
+# User profile endpoint (bonus)
+@favorites_ns.route('/profile')
+class UserProfile(Resource):
+    @jwt_required()
+    @favorites_ns.doc('get_profile', security='jwt')
+    @favorites_ns.response(401, 'Authentication required')
+    def get(self):
+        """Get current user profile with favorites summary"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(user_id)
+            
+            if not user:
+                favorites_ns.abort(404, "User not found")
+            
+            favorites_summary = {
+                'total_favorites': len(user.favorites),
+                'people_count': len([f for f in user.favorites if f.people_id]),
+                'planets_count': len([f for f in user.favorites if f.planet_id]),
+                'vehicles_count': len([f for f in user.favorites if f.vehicle_id]),
+            }
+            
+            return {
+                'user': user.serialize(),
+                'favorites_summary': favorites_summary
+            }
+            
+        except Exception as e:
+            favorites_ns.abort(500, f"Error fetching profile: {str(e)}")
+
+
+# Configure JWT security for Swagger documentation
+authorizations = {
+    'jwt': {
+        'type': 'apiKey',
+        'in': 'header',
+        'name': 'Authorization',
+        'description': "Type in the *'Value'* input box below: **'Bearer &lt;JWT&gt;'**, where JWT is the token"
+    }
+}

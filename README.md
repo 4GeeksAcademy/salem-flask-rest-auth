@@ -1,149 +1,136 @@
+## API Route Tree
+
+```
+/ (root) [GET] (HTML welcome)
+├── api/
+│   ├── profile                   [GET]   (JWT required)
+│   ├── people
+│   │   ├──                       [GET]   (List all people)
+│   │   └── <person_id>           [GET]   (Get person by ID)
+│   ├── planets
+│   │   ├──                       [GET]   (List all planets)
+│   │   └── <planet_id>           [GET]   (Get planet by ID)
+│   ├── vehicles
+│   │   ├──                       [GET]   (List all vehicles)
+│   │   └── <vehicle_id>          [GET]   (Get vehicle by ID)
+│   └── favorites
+│       ├──                       [GET]   (JWT required, list user's favorites)
+│       ├──                       [POST]  (JWT required, add favorite)
+│       └── <favorite_id>         [DELETE] (JWT required, delete favorite)
+├── api/docs/                     [GET]   (Swagger UI)
+├── admin/                        [GET]   (Admin panel, login required)
+```
+
+## app.py Structure
+
+```
+app.py
+├── create_app()
+│   ├── Loads config from env
+│   ├── Initializes extensions (db, migrate, jwt, cors, swagger, security)
+│   ├── Registers admin and API routes
+│   ├── Defines root route (HTML welcome)
+│   ├── Handles API errors (JSON for /api/*)
+│   └── Optionally checks DB connection on startup
+└── if __name__ == "__main__": runs app on port 3000
+```
+
+## Frontend React Structure (minimal)
+
+```
+frontend/
+├── src/
+│   ├── main.jsx           # App entry point
+│   ├── routes.jsx         # React Router routes
+│   ├── store.js           # State management
+│   ├── components/
+│   │   ├── CardContainer.jsx
+│   │   ├── Cards.jsx
+│   │   ├── Login.jsx
+│   │   └── Navbar.jsx
+│   ├── pages/
+│   │   ├── CardView.jsx
+│   │   ├── Home.jsx
+│   │   └── Layout.jsx
+│   ├── hooks/
+│   │   └── useGlobalReducer.jsx
+│   ├── data/
+│   │   └── starWarsData.jsx
+│   └── styles/
+│       ├── border-themes.css
+│       ├── custom-borders.css
+│       └── global.css
+├── package.json
+└── vite.config.js
+```
+
 # Star Wars Flask REST API
 
-Flask REST API for managing Star Wars characters, planets, and vehicles with JWT authentication and a secure admin interface. Clean, minimal, and production-ready.
+Minimal Flask REST API for Star Wars data with JWT authentication, admin panel, and React frontend.
 
-## Features
+## Prerequisites
 
-- JWT Authentication (Flask-JWT-Extended)
-- Admin panel (Flask-Admin, protected by Flask-Security)
-- User/Role management (Flask-Security)
-- SQLite or PostgreSQL support
-- bcrypt password hashing
-- CORS for frontend integration
+- Python 3.10+ and pipenv
+- Node.js and npm
 
-## Quick Start
 
-```bash
-git clone https://github.com/4GeeksAcademy/salem-flask-rest-auth.git
-cd salem-flask-rest-auth
 
-# Backend setup
+# Install backend dependencies
 cd backend
 pipenv install
-pipenv run flask db upgrade
+pipenv shell   # Activate the virtual environment
 
-# Frontend setup
+# Install frontend dependencies
 cd ../frontend
 npm install
 
-# Start both (from project root)
-./devOps/start_fullstack.sh
+# Go back to project root
+cd ..
+
+python3 devOps/quick_db.py reset         # Sets up DB and migrations (does NOT add sample data or users)
+python3 devOps/quick_db.py add-data      # (NEW) Adds Star Wars sample data
+python3 devOps/quick_db.py create-users  # (NEW) Adds default admin and test users
+python3 devOps/start_fullstack.py        # Starts backend and frontend
 ```
 
-## Creating an Admin User
+## Testing the API
 
-To access `/admin`, you need a user with the `admin` role. In a Python shell:
+Run the smoke test script to check all main endpoints:
 
-```python
-from app import create_app
-from models import db, User, Role
-from flask_security import SQLAlchemyUserDatastore
-app = create_app()
-app.app_context().push()
-user_datastore = SQLAlchemyUserDatastore(db, User, Role)
-admin_role = user_datastore.find_or_create_role('admin')
-user = user_datastore.create_user(email='admin@example.com', password='yourpassword', fs_uniquifier='uniqueid')
-user_datastore.add_role_to_user(user, admin_role)
-db.session.commit()
+```bash
+export JWT_TOKEN=your_token_here
+python3 devOps/api_smoke_test.py
 ```
 
-## Usage
+## Admin Access
 
-- Frontend: http://localhost:3001
-- Backend API: http://127.0.0.1:3000
-- Admin: http://127.0.0.1:3000/admin/ (login required, admin role required)
-
-## Test Credentials
+Default admin user:
 
 | Email              | Password | Role  |
 | ------------------ | -------- | ----- |
 | admin@starwars.com | admin123 | admin |
 
-## API Endpoints (examples)
+Go to [http://127.0.0.1:3000/admin/](http://127.0.0.1:3000/admin/) and log in.
 
-- `POST /api/login` - User login
-- `POST /api/register` - User registration
-- `GET /api/profile` - Get current user (JWT required)
-- `GET /api/people` - List characters
-- `GET /api/planets` - List planets
-- `GET /api/vehicles` - List vehicles
-- `GET /api/users/favorites` - Get user favorites (JWT required)
-- `POST /api/favorites` - Add favorite (JWT required)
-- `DELETE /api/favorites/<favorite_id>` - Remove favorite (JWT required)
+## API Docs
 
-## API Documentation (Swagger/OpenAPI)
-
-You can view and test the API interactively using Swagger UI:
-
-- [Swagger UI (local)](http://127.0.0.1:3000/api/docs) _(if enabled in backend)_
-- [Frontend App](http://localhost:3001)
-
-If you want to add or customize the OpenAPI spec, you can use a tool like [flasgger](https://github.com/flasgger/flasgger) or [flask-swagger-ui](https://github.com/swagger-api/swagger-ui) in your backend.
-
-## Database Schema (main tables)
-
-- User: id, email, password, is_active, fs_uniquifier, roles
-- Role: id, name, description
-- People: id, name, gender, birth_year, image_url
-- Planet: id, name, climate, population, image_url
-- Vehicle: id, name, model, manufacturer, image_url
-- Favorite: id, user_id, people_id, planet_id, vehicle_id
-
-## Features
-
-- JWT Authentication (Flask-JWT-Extended)
-- Flask-Security for user/admin management
-- Flask-Admin (admin panel)
-- SQLite/PostgreSQL
-- bcrypt password hashing
-
-salem-flask-rest-auth/
+- Swagger UI: [http://127.0.0.1:3000/api/docs](http://127.0.0.1:3000/api/docs)
+- Frontend:   [http://localhost:3001](http://localhost:3001)
 
 ## Project Structure
 
 ```
 salem-flask-rest-auth/
 ├── backend/
-│   ├── app.py
-│   ├── models.py
-│   ├── routes.py
-│   ├── admin.py
-│   ├── migrations/
-│   └── instance/
 ├── frontend/
-│   ├── src/
-│   └── package.json
-├── devOps/
-│   ├── quick_db.sh
-│   └── start_fullstack.sh
-└── README.md
+└── devOps/
 ```
 
 ## Troubleshooting
 
-- If you see "unable to open database file":
-  - Make sure you're in the project root
-  - Create the `instance/` directory: `mkdir -p backend/instance`
-- If you see migration errors (table exists, missing revision, etc):
-  - Reset migrations and DB (dev only):
-    ```bash
-    rm -rf backend/migrations
-    rm backend/app.db
-    cd backend
-    pipenv run flask db init
-    pipenv run flask db migrate -m "Initial migration"
-    pipenv run flask db upgrade
-    ```
-- If you see `ValueError: User model must contain fs_uniquifier as of 4.0.0`:
-  - Add `fs_uniquifier` to your User model and re-run migrations.
-
-3. **Port conflicts**: Backend uses 3000, frontend uses 3001
-4. **Migration errors**: Use `./devOps/quick_db.sh reset` to start fresh
-5. **Python command**: On macOS, use `python3` instead of `python` for all commands
-
-````
-
-
+- Use `python3 devOps/quick_db.py reset` to reset DB and migrations
+- Use `python3` for all backend commands on macOS
+- Backend: port 3000, Frontend: port 3001
 
 ```
 
