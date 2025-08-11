@@ -65,8 +65,16 @@ def setup_admin(app):
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample key')
     app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
     admin = Admin(app, name='Star Wars Admin', template_mode='bootstrap3')
-    # Add model views with image support
-    admin.add_view(UserView(User, db.session))
+    # Restrict admin to users with ADMIN_TOKEN env var (simple example)
+    from flask import request, abort
+    class SecureModelView(UserView):
+        def is_accessible(self):
+            admin_token = os.environ.get('ADMIN_TOKEN')
+            req_token = request.headers.get('X-Admin-Token')
+            return admin_token and req_token == admin_token
+        def inaccessible_callback(self, name, **kwargs):
+            abort(403)
+    admin.add_view(SecureModelView(User, db.session))
     admin.add_view(PeopleView(People, db.session))
     admin.add_view(PlanetView(Planet, db.session))
     admin.add_view(VehicleView(Vehicle, db.session))

@@ -20,8 +20,11 @@ def register_routes(app):
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
+        # Basic input validation
         if not email or not password:
             return jsonify({'msg': 'Email and password required'}), 400
+        if len(password) < 8:
+            return jsonify({'msg': 'Password must be at least 8 characters'}), 400
         if User.query.filter_by(email=email).first():
             return jsonify({'msg': 'User already exists'}), 409
         user = User(email=email, is_active=True)
@@ -35,6 +38,8 @@ def register_routes(app):
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
+        if not email or not password:
+            return jsonify({'msg': 'Email and password required'}), 400
         user = User.query.filter_by(email=email).first()
         if not user or not user.check_password(password):
             return jsonify({'msg': 'Invalid credentials'}), 401
